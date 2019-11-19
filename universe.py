@@ -602,6 +602,10 @@ class Person(Mammal):
 
 
 class Family:
+    """
+    Family class - having parents, children
+    """
+    #
     __family_id__: int = 0
 
     @classmethod
@@ -663,6 +667,10 @@ class Family:
         # note that since a person can be a parent across multiple families,
         #  it's not safe to add the populations of families (you may be double-counting!)
         return len(self.members)
+
+    def set_members_updated_callback(self, callback: callable):
+        assert callable(callback),'callback must be a callable function/method'
+        self.__members_updated_callback__ = callback
 
     @property
     def alive_parents(self) -> List[Person]:
@@ -891,6 +899,10 @@ class Community:
     @property
     def all_families_names(self) -> List[str]:
         return [f.name for f in self.all_families]
+
+    def set_families_updated_callback(self, callback: callable):
+        assert callable(callback),'callback must be a callable function/method'
+        self.__families_updated_callback__ = callback
 
     def new_family(self, name: str, members_updated_callback=None):
         assert name is not None and isinstance(
@@ -1136,6 +1148,10 @@ class World:
         assert new_name is not None and isinstance(
             new_name, str) and new_name != ''
         self.__world_name__ = new_name
+
+    def set_communities_updated_callback(self, callback: callable):
+        assert callable(callback),'callback must be a callable function/method'
+        self.__communities_updated_callback__ = callback
 
     @property
     def all_communities(self) -> List[Community]:
