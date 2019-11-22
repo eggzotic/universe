@@ -1,10 +1,13 @@
 # universe
 Python reference project
 
-Sample project that evolved while learning Python3. Uses an object-oriented style to help me get a feel for how Python can do this. Includes basic GUI using TKinter - written using a declaritive style (even though tkinter doesn't really support this (it flickers a lot as each frame is re-drawn(!))).
+Sample project that evolved while self-learning Python3. Using an object-oriented style to help me get a feel for how Python can do this. Includes basic GUI using TKinter - written using a declaritive style (even though tkinter doesn't really support this (it flickers a lot as each frame is re-drawn(!))).
+
+2019-11-22 Added save-to/load-from file functionality
+           some UI improvements
 
 To run:
-$ python3 planet_gui.py
+$ python3 world_gui.py
 
 and clickety-click around...
 

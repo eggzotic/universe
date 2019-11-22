@@ -2,6 +2,7 @@
 import datetime
 from typing import List, Set
 from enum import Enum
+import pickle
 
 
 class Gender(Enum):
@@ -11,6 +12,15 @@ class Gender(Enum):
     male: str = 'male'
     female: str = 'female'
     undisclosed: str = 'undisclosed gender'
+
+
+class Movement(Enum):
+    """
+    Movements enum - crawl, walk, run, etc.
+    """
+    crawl: str = 'crawl'
+    walk: str = 'walk'
+    run: str = 'run'
 
 
 class Emotion(Enum):
@@ -40,7 +50,8 @@ class Action(Enum):
     """
     Actions enum - each representing something we can do or that happens to us
     """
-    changed_hair_color: str = 'changed hair color to'
+    changed_name: str = 'changed name from'
+    changed_hair_color: str = 'changed hair color from'
     became_a_pet: str = 'became a pet'
     returned_to_wild: str = 'returned to wild'
     died: str = 'died'
@@ -52,6 +63,7 @@ class Action(Enum):
     got_shot: str = 'got shot'
     contracted_illness: str = 'contracted illness'
     recovered_from_illness: str = 'recovered from illness'
+    crawled: str = 'crawled'
     walked: str = 'walked'
     ran: str = 'ran'
     washed: str = 'washed'
@@ -74,20 +86,44 @@ class Action(Enum):
     touched_by: str = 'was touched by'
 
 
+class HairColor(Enum):
+    """
+    Hair colors - possible hair colors for people
+    """
+    brunette: str = 'brunette'
+    black: str = 'black'
+    blonde: str = 'blonde'
+    white: str = 'white'
+    gray: str = 'gray'
+    sandy: str = 'sandy'
+    dark: str = 'dark'
+    ginger: str = 'ginger'
+
+
 class Animal:
     """
     Animal class - parent class for all animals
     """
 
-    def __init__(self, age: int = None, dob: datetime.datetime = None, gender: Gender = Gender.undisclosed, type: str = 'Animal', name: str = None, eye_color: str = 'blue', hair_color: str = None, is_healer: bool = False):
+    def __init__(self, age: int = None,
+                 dob: datetime.datetime = None,
+                 gender: Gender = Gender.undisclosed,
+                 type: str = 'Animal',
+                 name: str = None,
+                 eye_color: str = 'blue',
+                 hair_color: HairColor = None,
+                 is_healer: bool = False):
         # specify age *or* date-of-birth (but not both) or neither
-        assert age is None or dob is None
+        assert age is None or dob is None, 'specify age *or* date-of-birth, but *not* both'
         # dob must be a datetime, if present
-        assert dob is None or isinstance(dob, datetime.datetime)
+        assert dob is None or isinstance(
+            dob, datetime.datetime), 'invalid date of birth'
         # age must be a positive-int, if present
-        assert age is None or (isinstance(age, int) and age >= 0)
+        assert age is None or (isinstance(
+            age, int) and age >= 0), 'invalid age'
         #
-        assert name is None or (isinstance(name, str) and name != '')
+        assert name is None or (isinstance(name, str)
+                                and name.strip() != ''), 'invalid name'
         #
         self.__breathes__: bool = True
         self.__is_wild__: bool = True
@@ -105,7 +141,7 @@ class Animal:
         self.__can_fly__: bool = False
         self.__makes_sound__: str = 'silence'
         self.__can_lay_eggs__: bool = False
-        self.__given_name__: str = name
+        self.__given_name__: str = name if name is None else name.strip()
         self.__family_id__: int = None
         self.__has_hair__: bool = False
         self.__can_change_hair_color__: bool = False
@@ -121,6 +157,7 @@ class Animal:
         self.__is_wet__: bool = False
         self.__is_tired__: bool = False
         self.__distance_units__: str = 'km'
+        self.__crawling_tiredness_distance__: float = 0.1
         self.__walking_tiredness_distance__: float = 5.0
         self.__running_tiredness_distance__: float = 1.0
         self.__is_cold__: bool = False
@@ -138,15 +175,21 @@ class Animal:
                 year=birth_year, month=now.month, day=now.day, hour=now.hour, minute=now.minute)
         else:
             self.__dob__ = None
-            print(self.name or self.animal_type,
-                  'created without date-of-birth')
+            message(self.name or self.animal_type,
+                    'created without date-of-birth')
     #
     @property
     def name(self) -> str: return self.__given_name__
     @name.setter
     def name(self, name: str):
-        assert name is not None and isinstance(name, str)
+        assert isinstance(name, str), 'invalid name'
+        name = name.strip()
+        assert name != '', 'invalid name'
+        old_name = self.__given_name__
         self.__given_name__ = name
+        self.notify_container()
+        self.add_action(Action.changed_name, old_name, 'to', name)
+        self.prop_callback()
 
     @property
     def is_alive(self) -> bool: return self.__breathes__
@@ -155,6 +198,7 @@ class Animal:
         # resurrection not supported - death is final!
         self.__breathes__ = False
         self.add_action(Action.died)
+        self.prop_callback()
 
     @property
     def is_wild(self) -> bool: return self.__is_wild__
@@ -165,9 +209,11 @@ class Animal:
     # gender-change is a thing, after all
     @gender.setter
     def gender(self, gender: Gender):
-        assert gender is not None and isinstance(gender, Gender)
+        assert isinstance(gender, Gender), 'invalid gender'
+        assert self.is_alive, 'the dead cannot change gender'
         self.__gender__ = gender
         self.add_action(Action.changed_gender, gender.value)
+        self.prop_callback()
 
     @property
     def leg_count(self) -> int: return self.__leg_count__
@@ -189,10 +235,8 @@ class Animal:
     def dob(self) -> datetime.datetime: return self.__dob__
     @property
     def age(self) -> int:
-        if self.dob is None:
-            print(self.name or self.__animal_type__,
-                  'has no recorded date-of-birth - cannot get age')
-            return None
+        assert self.dob is not None, self.name or self.__animal_type__ + \
+            ' has no recorded date-of-birth - cannot get age'
         now = datetime.datetime.now()
         years_diff = now.year - self.dob.year
         if now.month < self.dob.month or now.day < self.dob.day:
@@ -230,33 +274,53 @@ class Animal:
     @property
     def hair_color(self) -> str: return self.__hair_color__
     @hair_color.setter
-    def hair_color(self, new_color: str):
-        if not self.can_change_hair_color:
-            print(self.name or self.animal_type,
-                  'cannot change their hair color')
-            return
-        assert new_color is not None and isinstance(new_color, str)
+    def hair_color(self, new_color: HairColor):
+        assert self.is_alive, 'the dead cannot change hair color'
+        assert self.can_change_hair_color, self.name or self.animal_type + \
+            ' cannot change their hair color'
+        assert isinstance(new_color, HairColor), 'invalid hair color'
+        old_color = self.__hair_color__
         self.__hair_color__ = new_color
-        self.add_action(Action.changed_hair_color, new_color)
+        self.add_action(Action.changed_hair_color,
+                        old_color.value, 'to', new_color.value)
+        self.prop_callback()
 
     @property
     def eye_color(self) -> str: return self.__eye_color__
 
+    def set_property_updated_callback(self, callback):
+        assert callable(callback), 'callback must be a function/method'
+        self.__property_updated_callback__ = callback
+
+    def prop_callback(self):
+        if not hasattr(self, '__property_updated_callback__'):
+            return
+        if self.__property_updated_callback__ is None:
+            return
+        self.__property_updated_callback__()
+
+    def set_notify_container(self, callback):
+        assert callable(callback), 'callback must be a function/method'
+        self.__notify_container_callback__ = callback
+
+    def notify_container(self):
+        if not hasattr(self, '__notify_container_callback__'):
+            return
+        if self.__notify_container_callback__ is None:
+            return
+        self.__notify_container_callback__()
+
     # this should not really be a public method - should only be called from the
     #  Family.pet_add() etc. methods - to ensure a valid family_id is passed
     def make_pet(self, family_id: int, name: str = None):
-        if isinstance(self, Person):
-            print(self.name or self.animal_type,
-                  'cannot me made a pet - slavery not supported')
-            return
-        if self.is_pet:
-            print(self.animal_type, 'is already a pet called',
-                  self.name, 'so cannot make a pet')
-            return
-        assert ((name is not None and isinstance(name, str) and name != '')
+        assert not isinstance(self, Person), self.name or self.animal_type + \
+            ' cannot me made a pet - slavery not supported'
+        assert not self.is_pet, self.animal_type + \
+            ' is already a pet called' + self.name + ' so cannot make a pet'
+        assert ((isinstance(name, str) and name.strip() != '')
                 or
-                (self.name is not None and isinstance(self.name, str) and self.name != ''))
-        assert family_id is not None and isinstance(family_id, int)
+                (isinstance(self.name, str) and self.name != '')), 'invalid pet name'
+        assert isinstance(family_id, int), 'invalid family ID'
         #
         self.__is_wild__ = False
         if name is not None:
@@ -265,34 +329,29 @@ class Animal:
         self.add_action(Action.became_a_pet)
 
     def return_to_wild(self):
-        if isinstance(self, Person):
-            print(self.animal_type, 'cannot be a pet anyway')
-            return
-        if not self.is_pet:
-            print(self.animal_type, 'is not a pet anyway')
-            return
+        assert not isinstance(
+            self, Person), self.animal_type + ' cannot be a pet anyway'
+        assert self.is_pet, self.animal_type + ' is not a pet anyway'
         self.__family_id__ = None
         self.__is_wild__ = True
         self.add_action(Action.returned_to_wild)
 
-    def kills(self, victim):
-        assert victim is not None and isinstance(victim, Animal)
-        if not self.is_alive:
-            print(self.name, 'kills: the dead cannot kill')
-            return
+    def kills(self, victim: 'Animal'):
+        assert isinstance(victim, Animal), 'invalid animal (victim)'
+        assert self.is_alive, 'the dead cannot kill'
         # victim can be ourself - i.e. suicide
         if self is victim:
-            print(self.name or self.animal_type, 'commits suicide')
+            message(self.name or self.animal_type, 'commits suicide')
         elif isinstance(self, Person):
             if isinstance(victim, Person):
-                print(self.name, 'murders', victim.name)
+                message(self.name, 'murders', victim.name)
                 self.__is_criminal__ = True
             else:
-                print(self.name, 'kills animal',
-                      victim.name or victim.animal_type)
+                message(self.name, 'kills animal',
+                        victim.name or victim.animal_type)
         else:
-            print(self.name or self.animal_type, 'kills',
-                  victim.name or victim.animal_type)
+            message(self.name or self.animal_type, 'kills',
+                    victim.name or victim.animal_type)
         victim.dies()
         self.add_action(Action.killed,
                         (victim.name or victim.animal_type))
@@ -329,7 +388,9 @@ class Animal:
     def gets_ill(self): self.__is_ill__ = True
 
     def contracted_illness(self, illness: str):
-        assert illness is not None and isinstance(illness, str)
+        assert isinstance(illness, str), 'invalid illnes'
+        illness = illness.strip()
+        assert illness != '', 'invalid illness'
         self.gets_ill()
         self.__illness__ = illness
         self.add_action(Action.contracted_illness, illness)
@@ -343,8 +404,8 @@ class Animal:
     def distance_travelled(self) -> int: return self.__distance_travelled__
 
     def travelled(self, distance: float):
-        assert distance is not None and isinstance(
-            distance, (int, float)) and distance >= 0
+        assert isinstance(distance, (int, float)
+                          ) and distance >= 0, 'invalid distance'
         distance *= 1.0
         self.__distance_travelled__ += distance
 
@@ -355,25 +416,35 @@ class Animal:
         return None
 
     @property
-    def all_actions(self) -> List[str]:
+    def all_actions(self) -> List:
         return self.__action_history__
 
     def add_action(self, action: Action, *strings):
-        assert action is not None and isinstance(action, Action)
+        assert isinstance(action, Action), 'invalid action'
         for s in strings:
-            assert isinstance(s, str)
+            assert isinstance(s, str), 'invalid string'
         self.__action_history__.append((action, *strings))
 
-    def walks(self, distance: float):
-        assert distance is not None and isinstance(distance, (int, float))
+    def crawls(self, distance: float):
+        assert isinstance(distance, (int, float)), 'invalid distance'
         self.travelled(distance)
-        if distance >= self.__walking_tiredness_distance__:
-            self.__is_tired__ = True
+        self.add_action(Action.crawled, str(distance) +
+                        ' ' + self.__distance_units__)
+        if distance >= self.__crawling_tiredness_distance__:
+            self.gets_tired()
+        self.prop_callback()
+
+    def walks(self, distance: float):
+        assert isinstance(distance, (int, float)), 'invalid distance'
+        self.travelled(distance)
         self.add_action(Action.walked, str(distance) +
                         ' ' + self.__distance_units__)
+        if distance >= self.__walking_tiredness_distance__:
+            self.gets_tired()
+        self.prop_callback()
 
     def runs(self, distance: float):
-        assert distance is not None and isinstance(distance, (int, float))
+        assert isinstance(distance, (int, float)), 'invalid distance'
         self.travelled(distance)
         self.add_action(Action.ran, str(distance) +
                         ' ' + self.__distance_units__)
@@ -381,6 +452,7 @@ class Animal:
             self.gets_warm()
             self.sweats()
             self.gets_tired()
+        self.prop_callback()
 
     @property
     def is_clean(self) -> bool: return self.__is_clean__
@@ -389,6 +461,7 @@ class Animal:
         self.__is_clean__ = True
         self.__is_wet__ = True
         self.add_action(Action.washed)
+        self.prop_callback()
 
     def went_in_mud(self):
         self.__is_clean__ = False
@@ -400,6 +473,7 @@ class Animal:
     def drys(self):
         self.__is_wet__ = False
         self.add_action(Action.dried)
+        self.prop_callback()
 
     @property
     def is_tired(self) -> bool: return self.__is_tired__
@@ -413,9 +487,10 @@ class Animal:
         self.add_action(Action.rested)
         if self.is_sweating:
             self.cools_down()
+        self.prop_callback()
 
     def says(self, words: str):
-        assert words is not None and isinstance(words, str)
+        assert isinstance(words, str), 'invalid words'
         self.add_action(Action.spoke, words)
 
     @property
@@ -434,6 +509,7 @@ class Animal:
 
     def sweats(self):
         self.__is_sweating__ = True
+        self.__is_wet__ = True
         self.add_action(Action.sweated)
 
     def cools_down(self):
@@ -445,14 +521,14 @@ class Animal:
         return self.__emotions__
 
     def add_emotion(self, emotion: Emotion):
-        assert emotion is not None and isinstance(emotion, Emotion)
+        assert isinstance(emotion, Emotion), 'invalid emotion'
         self.__emotions__.add(emotion)
 
     @property
     def has_healing_touch(self) -> bool: return self.__has_healing_touch__
 
     def touches(self, other: 'Animal'):
-        assert other is not None and isinstance(other, Animal)
+        assert isinstance(other, Animal), 'invalid animal'
         self.add_action(Action.touched, other.name or other.animal_type)
         other.add_action(Action.touched_by, self.name or self.animal_type)
         if self.has_healing_touch:
@@ -468,7 +544,7 @@ class Bird(Animal):
     """
 
     def __init__(self, can_fly: bool = True, *args, **kwargs):
-        assert can_fly is not None and isinstance(can_fly, bool)
+        assert isinstance(can_fly, bool), 'invalid can-fly value'
         #
         super().__init__(*args, type='Bird', **kwargs)
         # overrides - bird-specific attributes
@@ -548,10 +624,12 @@ class Person(Mammal):
 
     def __init__(self, name: str, age: int = None, dob: datetime.datetime = None, *args, **kwargs):
         # person must have a name
-        assert name is not None and (isinstance(name, str) and name != '')
+        assert isinstance(name, str), 'invalid name'
+        name = name.strip()
+        assert name != '', 'invalid name'
         # specify age *or* date-of-birth, but not both
-        assert age is None or dob is None
-        assert age is not None or dob is not None
+        assert age is None or dob is None, 'specify age *or* date-of-birth, but not both'
+        assert age is not None or dob is not None, 'specify age *or* date-of-birth, but not both'
         #
         super().__init__(age=age, dob=dob, type='Person', name=name, *args, **kwargs)
         # overrides - human-specific attributes
@@ -567,7 +645,7 @@ class Person(Mammal):
         self.__has_hair__: bool = True
         self.__can_change_hair_color__: bool = True
         if self.__hair_color__ is None:
-            self.__hair_color__ = 'brunette'
+            self.__hair_color__ = HairColor.brunette
 
     @property
     def id(self) -> int: return self.__person_id__
@@ -584,10 +662,9 @@ class Person(Mammal):
     def is_forgiven(self) -> bool: return self.__is_forgiven__
 
     def forgives(self, sinner: 'Person'):
-        assert sinner is not None and isinstance(sinner, Person)
-        if not self.is_alive:
-            print(self.name, 'forgives: the dead cannot forgive')
-            return
+        assert sinner is not None and isinstance(
+            sinner, Person), 'invalid person (sinner)'
+        assert self.is_alive, 'the dead cannot forgive'
         #
         sinner.__is_forgiven__ = True
 
@@ -599,6 +676,14 @@ class Person(Mammal):
 
     def is_sister_of(self, other: 'Person') -> bool:
         return self.is_sibling_of(other) and self.gender == Gender.female
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if hasattr(self, '__property_updated_callback__'):
+            del state['__property_updated_callback__']
+        if hasattr(self, '__notify_container_callback__'):
+            del state['__notify_container_callback__']
+        return state
 
 
 class Family:
@@ -615,10 +700,9 @@ class Family:
 
     def __init__(self, name: str, members_updated_callback=None):
         # name must be a non-empty string
-        assert name is not None, 'name required'
-        assert isinstance(name, str), 'name must be a string'
+        assert isinstance(name, str), 'invalid name'
         name = name.strip()
-        assert name != '', 'name cannot be blank'
+        assert name != '', 'invalid name'
         #
         self.__family_id__ = Family.__next_id__()
         # the community ID this person currently belongs to
@@ -628,7 +712,7 @@ class Family:
         self.__parents__: List[Person] = list()
         self.__children__: List[Person] = list()
         self.__pets__: List[Animal] = list()
-        print(name, 'family created')
+        message(name, 'family created')
         self.__members_updated_callback__ = members_updated_callback
 
     @property
@@ -649,8 +733,27 @@ class Family:
     def name(self) -> str: return self.__family_name__
     @name.setter
     def name(self, new_name: str):
-        assert new_name is not None and isinstance(new_name, str)
+        assert isinstance(new_name, str), 'invalid name'
+        new_name = new_name.strip()
+        assert new_name != '', 'invalid name'
         self.__family_name__ = new_name
+        self.notify_container()
+        self.prop_callback()
+
+    def prop_callback(self):
+        if self.__members_updated_callback__ is not None:
+            self.__members_updated_callback__()
+
+    def set_notify_container(self, callback):
+        assert callable(callback), 'callback must be a function/method'
+        self.__notify_container_callback__ = callback
+
+    def notify_container(self):
+        if not hasattr(self, '__notify_container_callback__'):
+            return
+        if self.__notify_container_callback__ is None:
+            return
+        self.__notify_container_callback__()
 
     @property
     def parents(self) -> List[Person]: return self.__parents__
@@ -669,7 +772,8 @@ class Family:
         return len(self.members)
 
     def set_members_updated_callback(self, callback: callable):
-        assert callable(callback),'callback must be a callable function/method'
+        assert callable(
+            callback), 'callback must be a callable function/method'
         self.__members_updated_callback__ = callback
 
     @property
@@ -677,14 +781,14 @@ class Family:
         return [parent for parent in self.parents if parent.is_alive]
 
     def gives_birth(self, name: str, gender: Gender = Gender.undisclosed):
-        assert name is not None and isinstance(name, str)
+        assert isinstance(name, str), 'invalid name'
         #
         baby = Person(name=name, dob=datetime.datetime.now())
         baby.add_action(Action.was_born)
         self.child_add(person=baby)
 
     def adopts_child(self, person: Person):
-        assert person is not None and isinstance(person, Person)
+        assert isinstance(person, Person), 'invalid person'
         #
         person.add_action(Action.was_adopted)
         self.child_add(person)
@@ -706,16 +810,15 @@ class Family:
         return [parent.age for parent in self.parents]
 
     def has_parent(self, person: Person) -> bool:
-        assert person is not None and isinstance(person, Person)
-        #
+        assert isinstance(person, Person), 'invalid person'
         return person in self.parents
 
     def has_child(self, person: Person) -> bool:
-        assert person is not None and isinstance(person, Person)
+        assert isinstance(person, Person), 'invalid person'
         return person in self.children
 
     def has_pet(self, pet: Animal) -> bool:
-        assert pet is not None and isinstance(pet, Animal)
+        assert isinstance(pet, Animal), 'invalid animal'
         if pet.is_pet:
             return pet in self.pets
         return False
@@ -724,67 +827,54 @@ class Family:
         """
         add a pet to this family
         """
-        assert pet is not None and isinstance(pet, Animal)
+        assert isinstance(pet, Animal)
         # cannot add a pet if already a pet
-        if self.has_pet(pet):
-            print(self.name, 'family: already has pet',
-                  pet.name, '- cannot add again')
-            return
+        assert not self.has_pet(pet), 'already has pet' + \
+            pet.name + ' - cannot add again'
         #
-        if isinstance(pet, Person):
-            print(pet.name, 'is a person - cannot be a pet')
-            return
+        assert not isinstance(pet, Person), pet.name + \
+            ' is a person - cannot be a pet'
         #
-        if pet.family_id is not None:
-            print(pet.name, 'already belongs to a family, cannot add to another')
-            return
+        assert pet.family_id is None, pet.name + \
+            ' already belongs to a family, cannot add to another'
         #
         pet.make_pet(family_id=self.id, name=name)
         self.pets.append(pet)
-        print(self.name, 'family: added pet', pet.name)
+        message(self.name, 'family: added pet', pet.name)
 
     def pet_remove(self, pet: Animal):
         """
         remove a pet from this family
         """
-        assert pet is not None and isinstance(pet, Animal)
-        if pet in self.pets:
-            self.pets.remove(pet)
-            pet.return_to_wild()
-            print(self.name, 'family: removed pet', pet.name)
-            return
-        print(self.name, 'family: does not have pet',
-              pet.name, '- cannot remove')
+        assert isinstance(pet, Animal)
+        assert pet in self.pets, 'does not have pet ' + pet.name + ' - cannot remove'
+        self.pets.remove(pet)
+        pet.return_to_wild()
+        message(self.name, 'family: removed pet', pet.name)
 
     def child_add(self, person: Person):
         """
         add a child to this family
         """
-        assert person is not None and isinstance(person, Person)
+        assert isinstance(person, Person), 'invalid person'
         # cannot add as child if already a parent
-        if self.has_parent(person):
-            print(self.name, 'family: already has parent',
-                  person.name, '- cannot add as a child')
-            return
+        assert not self.has_parent(
+            person), 'already has parent' + person.name + ' - cannot add as a child'
         # cannot add as child if already a child
-        if self.has_child(person):
-            print(self.name, 'family: already has child', person.name,
-                  '- cannot add again')
-            return
+        assert not self.has_child(
+            person), 'already has child' + person.name + ' - cannot add again'
         # age must be less than parent ages
         for parent in self.parents:
-            if person.dob <= parent.dob:
-                print(self.name, 'family:', person.name, 'is older than (parent)',
-                      parent.name, '- so cannot be their child')
-                return
+            assert person.dob > parent.dob, person.name + \
+                ' is older than (parent)' + parent.name + \
+                ' - cannot be their child'
 
         # now can add as a child
-        print(self.name, 'family: added child', person.name)
+        message(self.name, 'family: added child', person.name)
         self.children.append(person)
         person.__family_id__ = self.__family_id__
         person.add_action(Action.child_added_to_family, self.name)
-        if self.__members_updated_callback__ is not None:
-            self.__members_updated_callback__()
+        self.prop_callback()
 
     def child_remove(self, person: Person):
         """
@@ -793,16 +883,12 @@ class Family:
         #
         assert person is not None and isinstance(person, Person)
         #
-        if person in self.children:
-            self.children.remove(person)
-            person.__family_id__ = None
-            person.add_action(Action.removed_from_family, self.name)
-            print(self.name, 'family: removed child', person.name)
-            if self.__members_updated_callback__ is not None:
-                self.__members_updated_callback__()
-            return
-        print(self.name, 'family: does not have child',
-              person.name, '- cannot remove')
+        assert person in self.children, person.name + ' is not a child, cannot remove'
+        self.children.remove(person)
+        person.__family_id__ = None
+        person.add_action(Action.removed_from_family, self.name)
+        print(self.name, 'family: removed child', person.name)
+        self.prop_callback()
 
     def parent_add(self, person: Person):
         """
@@ -810,52 +896,50 @@ class Family:
         """
         assert person is not None and isinstance(person, Person)
         # cannot add as parent if already a parent of this family
-        if self.has_parent(person):
-            print(self.name, 'family: already has parent',
-                  person.name, '- cannot add again')
-            return
+        assert not self.has_parent(
+            person), 'already has parent ' + person.name + ' - cannot add again'
         # cannot add as parent if already a child of this family
-        if self.has_child(person):
-            print(self.name, 'family: already has child', person.name,
-                  '- cannot add as a parent')
-            return
+        assert not self.has_child(
+            person), 'already has child ' + person.name + ' - cannot add as a parent'
         # cannot have more than 2 alive parents
-        if len(self.alive_parents) >= 2:
-            print(self.name, 'family: already 2 alive parents - cannot add more')
-            return
+        assert not len(
+            self.alive_parents) >= 2, '2 alive parents already - cannot add more'
         # age of parent cannot be less than children
         for child in self.children:
-            if person.dob > child.dob:
-                print(self.name, 'family:', person.name, 'is younger than (child)',
-                      child.name, '- cannot add as their parent')
-                return
+            assert person.dob < child.dob, person.name + \
+                ' is younger than (child) ' + child.name + \
+                ' - cannot be their parent'
         # no gender-related restrictions on who can be parents(!)
         #
         # now can add the parent
         self.parents.append(person)
         person.__parent_of_families_id__.add(self.__family_id__)
         person.add_action(Action.became_parent, self.name)
-        print(self.name, 'family: added parent', person.name)
-        if self.__members_updated_callback__ is not None:
-            self.__members_updated_callback__()
+        message(self.name, 'family: added parent', person.name)
+        self.prop_callback()
 
     def parent_remove(self, person: Person):
         """
         remove a parent from this family(!)
         """
         #
-        assert person is not None and isinstance(person, Person)
+        assert isinstance(person, Person), 'invalid person'
+        assert person in self.parents, person.name + ' is not a parent, cannot remove'
         #
-        if person in self.parents:
-            self.parents.remove(person)
-            person.__parent_of_families_id__.remove(self.__family_id__)
-            person.add_action(Action.removed_as_parent, self.name)
-            print(self.name, 'family: removed parent', person.name)
-            if self.__members_updated_callback__ is not None:
-                self.__members_updated_callback__()
-            return
-        print(self.name, 'family: does not have parent',
-              person.name, '- cannot remove')
+        self.parents.remove(person)
+        person.__parent_of_families_id__.remove(self.__family_id__)
+        person.add_action(Action.removed_as_parent, self.name)
+        message(self.name, 'family: removed parent', person.name)
+        self.prop_callback()
+
+    # for pickling
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if hasattr(self, '__members_updated_callback__'):
+            del state['__members_updated_callback__']
+        if hasattr(self, '__notify_container_callback__'):
+            del state['__notify_container_callback__']
+        return state
 
 
 class Community:
@@ -871,10 +955,9 @@ class Community:
         return cls.__community_id__
 
     def __init__(self, name: str, families_updated_callback=None):
-        assert name is not None, 'name required'
-        assert isinstance(name, str), 'name must be a string'
+        assert isinstance(name, str), 'invalid name'
         name = name.strip()
-        assert name != '', 'name cannot be blank'
+        assert name != '', 'invalid name'
         #
         self.__community_id__ = Community.__next_id__()
         self.__community_name__ = name
@@ -890,9 +973,27 @@ class Community:
     def name(self) -> str: return self.__community_name__
     @name.setter
     def name(self, new_name: str):
-        assert new_name is not None and isinstance(
-            new_name, str) and new_name != ''
+        assert isinstance(new_name, str), 'invalid name'
+        new_name = new_name.strip()
+        assert new_name != '', 'invalid name'
         self.__community_name__ = new_name
+        self.notify_container()
+        self.prop_callback()
+
+    def prop_callback(self):
+        if self.__families_updated_callback__ is not None:
+            self.__families_updated_callback__()
+
+    def set_notify_container(self, callback):
+        assert callable(callback), 'callback must be a function/method'
+        self.__notify_container_callback__ = callback
+
+    def notify_container(self):
+        if not hasattr(self, '__notify_container_callback__'):
+            return
+        if self.__notify_container_callback__ is None:
+            return
+        self.__notify_container_callback__()
 
     @property
     def all_families(self) -> List[Family]: return self.__all_families__
@@ -901,49 +1002,42 @@ class Community:
         return [f.name for f in self.all_families]
 
     def set_families_updated_callback(self, callback: callable):
-        assert callable(callback),'callback must be a callable function/method'
+        assert callable(
+            callback), 'callback must be a callable function/method'
         self.__families_updated_callback__ = callback
 
     def new_family(self, name: str, members_updated_callback=None):
-        assert name is not None and isinstance(
-            name, str) and name != '', 'name cannot be blank'
+        assert isinstance(name, str), 'invalid name'
+        name = name.strip()
+        assert name != '', 'invalid name'
         fam = Family(
             name=name, members_updated_callback=members_updated_callback)
         self.family_add(fam)
 
     def family_add(self, family: Family):
-        assert family is not None and isinstance(
-            family, Family), 'name cannot be blank'
+        assert isinstance(family, Family), 'invalid family'
         #
         # cannot already be in this community
-        if family.community_id == self.id:
-            print(self.name, 'community: cannot add', family.name,
-                  'family: already in this community')
-            return
+        assert family.community_id != self.id, 'cannot add ' + \
+            family.name + ' family: already in this community'
         # cannot belong to another community already
-        if family.community_id is not None:
-            print(self.name, 'community: cannot add', family.name,
-                  'family: is in another community')
-            return
+        assert family.community_id is None, 'cannot add ' + \
+            family.name + ' family: is in another community'
         # so we're good to go
         self.all_families.append(family)
         family.__community_id__ = self.__community_id__
-        print(self.name, 'community: added', family.name, 'family')
-        if self.__families_updated_callback__ is not None:
-            self.__families_updated_callback__()
+        message(self.name, 'community: added', family.name, 'family')
+        self.prop_callback()
 
     def family_remove(self, family: Family):
-        assert family is not None and isinstance(family, Family)
+        assert isinstance(family, Family), 'invalid family'
         #
-        if family in self.all_families:
-            self.all_families.remove(family)
-            family.__community_id__ = None
-            print(self.name, 'community: removed', family.name, 'family')
-            if self.__families_updated_callback__ is not None:
-                self.__families_updated_callback__()
-            return
-        print(self.name, 'community: cannot remove',
-              family.name, 'family: not in this community')
+        assert family in self.all_families, 'cannot remove ' + \
+            family.name + ' family: not in this community'
+        self.all_families.remove(family)
+        family.__community_id__ = None
+        message(self.name, 'community: removed', family.name, 'family')
+        self.prop_callback()
 
     @property
     def population(self) -> int:
@@ -953,8 +1047,7 @@ class Community:
         return len(ids)
 
     def family_of(self, person_or_pet) -> Family:
-        assert person_or_pet is not None and (isinstance(
-            person_or_pet, Animal))
+        assert isinstance(person_or_pet, Animal), 'invalid person or animal'
         family_id = None
         if not isinstance(person_or_pet, Person):
             family_id = person_or_pet.family_id
@@ -967,27 +1060,21 @@ class Community:
                     # just pick any family they're a parent of...
                     family_id = next(iter(family_ids))
         families = [fam for fam in self.all_families if fam.id == family_id]
-        if len(families) > 0:
-            return families[0]
-        print(person_or_pet.name, 'has no family')
-        return None
+        assert len(families) > 0, person_or_pet.name + ' has no family'
+        return families[0]
 
     def surname_of(self, person: Person) -> str:
-        assert person is not None and isinstance(person, Person)
+        assert isinstance(person, Person), 'invalid person'
         #
         family = self.family_of(person)
-        if family is None:
-            print(person.name, 'has no surname')
-            return None
+        assert family is not None, person.name + ' has no surname'
         return family.name
 
     def parents_of(self, person: Person) -> List[Person]:
-        assert person is not None and isinstance(person, Person)
+        assert isinstance(person, Person), 'invalid person'
         #
         family = self.family_of(person)
-        if family is None:
-            print(person.name, 'has no parents')
-            return []
+        assert family is not None, person.name + ' has no parents'
         return family.parents
 
     def parent_add(self, person: Person, parent: Person):
@@ -995,13 +1082,11 @@ class Community:
         add parent as a parent in the family of person
         """
         #
-        assert person is not None and isinstance(person, Person)
-        assert parent is not None and isinstance(parent, Person)
+        assert isinstance(person, Person), 'invalid person'
+        assert isinstance(parent, Person), 'invalid parent'
         #
         family = self.family_of(person)
-        if family is None:
-            print(person.name, 'cannot add parent')
-            return None
+        assert family is not None, person.name + ' cannot add parent - no family'
         family.parent_add(parent)
 
     def parent_remove(self, person: Person, parent: Person):
@@ -1013,49 +1098,37 @@ class Community:
         assert parent is not None and isinstance(parent, Person)
         #
         family = self.family_of(person)
-        if family is None:
-            print(person.name, 'cannot remove parent')
-            return None
+        assert family is not None, person.name + ' cannot remove parent - no family'
         family.parent_remove(parent)
 
     def father_of(self, person: Person) -> Person:
-        assert person is not None and isinstance(person, Person)
+        assert isinstance(person, Person), 'invalid person'
         #
         parents = self.parents_of(person)
-        if len(parents) == 0:
-            print(person.name, 'has no father')
-            return None
+        assert len(parents) > 0, person.name + ' has no father'
         for parent in parents:
             if parent.gender == Gender.male:
                 return parent
-        print(person.name, 'has no father')
-        return None
+        assert False, person.name + ' has no father'
 
     def mother_of(self, person: Person) -> Person:
-        assert person is not None and isinstance(person, Person)
+        assert isinstance(person, Person), 'invalid person'
         #
         parents = self.parents_of(person)
-        if len(parents) == 0:
-            print(person.name, 'has no mother')
-            return None
+        assert len(parents) > 0, person.name + ' has no mother'
         for parent in parents:
             if parent.gender == Gender.female:
                 return parent
-        print(person.name, 'has no mother')
-        return None
+        assert False, person.name + ' has no mother'
 
     def siblings_of(self, person: Person) -> List[Person]:
-        assert person is not None and isinstance(person, Person)
+        assert isinstance(person, Person), 'invalid person'
         #
         family = self.family_of(person)
-        if family is None:
-            print(self.name, 'family:', person.name, 'has no siblings')
-            return []
+        assert family is not None, person.name + ' has no siblings'
         # so we have a family - but we could be either a child or parent
         # ensure we're a child-only
-        if person not in family.children:
-            print(family.name, 'family:', person.name, 'is not a child here')
-            return []
+        assert person in family.children, person.name + ' is not a child here'
         return [sibling for sibling in family.children if sibling is not person]
 
     def sibling_add(self, person: Person, sibling: Person):
@@ -1063,16 +1136,14 @@ class Community:
         add sibling as a child in the family of person
         """
         #
-        assert person is not None and isinstance(person, Person)
-        assert sibling is not None and isinstance(sibling, Person)
+        assert isinstance(person, Person), 'invalid person'
+        assert isinstance(sibling, Person), 'invalid sibling'
         #
-        if person is sibling:
-            print(person.name, 'cannot be added as a sibling of himself/herself')
-            return
+        assert person is not sibling, person.name + \
+            ' cannot be added as a sibling of himself/herself'
         family = self.family_of(person)
-        if family is None:
-            print(person.name, 'cannot add sibling', sibling.name)
-            return
+        assert family is not None, person.name + \
+            ' cannot add sibling' + sibling.name + ' - no family'
         family.child_add(sibling)
 
     def sibling_remove(self, person: Person, sibling: Person):
@@ -1080,16 +1151,14 @@ class Community:
         remove sibling from the family of person
         """
         #
-        assert person is not None and isinstance(person, Person)
-        assert sibling is not None and isinstance(sibling, Person)
+        assert isinstance(person, Person), 'invalid person'
+        assert isinstance(sibling, Person), 'invalid sibling'
         #
-        if person is sibling:
-            print(person.name, 'cannot be removed as a sibling of himself/herself')
-            return
+        assert person is not sibling, person.name + \
+            ' cannot be removed as a sibling of himself/herself'
         family = self.family_of(person)
-        if family is None:
-            print(person.name, 'cannot remove sibling', sibling.name)
-            return
+        assert family is not None, person.name + \
+            ' cannot remove sibling' + sibling.name + ' - no family'
         family.child_remove(sibling)
 
     def pet_add(self, person: Person, pet: Animal, name: str = None):
@@ -1097,26 +1166,32 @@ class Community:
         add pet into the family of person
         """
         #
-        assert person is not None and isinstance(person, Person)
-        assert pet is not None and isinstance(pet, Animal)
+        assert isinstance(person, Person), 'invalid person'
+        assert isinstance(pet, Animal), 'invalid animal'
         #
         family = self.family_of(person)
-        if family is None:
-            print(person.name, 'cannot add pet', pet.name)
-            return
+        assert family is not None, person.name + \
+            ' cannot add pet' + pet.name + ' - no family'
         family.pet_add(pet, name=name)
 
     def pets_of(self, person: Person) -> List[Animal]:
         """
         return all the pets of the family of person
         """
-        assert person is not None and isinstance(person, Person)
+        assert isinstance(person, Person), 'invalid person'
         #
         family = self.family_of(person)
-        if family is None:
-            print(person.name, 'cannot find pets')
-            return []
+        assert family is not None, person.name + 'cannot find pets - no family'
         return family.pets
+
+    # for pickling
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if hasattr(self, '__families_updated_callback__'):
+            del state['__families_updated_callback__']
+        if hasattr(self, '__notify_container_callback__'):
+            del state['__notify_container_callback__']
+        return state
 
 
 class World:
@@ -1132,7 +1207,9 @@ class World:
         return cls.__world_id__
 
     def __init__(self, name: str, communities_updated_callback=None):
-        assert name is not None and isinstance(name, str) and name != ''
+        assert isinstance(name, str), 'invalid name'
+        name = name.strip()
+        assert name != '', 'invalid name'
         #
         self.__world_id__ = World.__next_id__()
         self.__world_name__ = name
@@ -1145,12 +1222,15 @@ class World:
     def name(self) -> str: return self.__world_name__
     @name.setter
     def name(self, new_name: str):
-        assert new_name is not None and isinstance(
-            new_name, str) and new_name != ''
+        assert isinstance(new_name, str), 'invalid name'
+        new_name = new_name.strip()
+        assert new_name != '', 'invalid name'
         self.__world_name__ = new_name
+        self.prop_callback()
 
-    def set_communities_updated_callback(self, callback: callable):
-        assert callable(callback),'callback must be a callable function/method'
+    def set_communities_updated_callback(self, callback):
+        assert callable(
+            callback), 'callback must be a callable function/method'
         self.__communities_updated_callback__ = callback
 
     @property
@@ -1162,46 +1242,42 @@ class World:
         return [c.name for c in self.all_communities]
 
     def new_community(self, name: str, families_updated_callback=None):
-        assert name is not None and isinstance(name, str)
+        assert isinstance(name, str) and name != '', 'invalid name'
         #
         com = Community(
             name=name, families_updated_callback=families_updated_callback)
         self.community_add(com)
 
-    def community_add(self, community: Community):
-        assert community is not None and isinstance(community, Community)
-        # cannot already be in this world
-        if community.world_id == self.id:
-            print(self.name, 'world: cannot add', community.name,
-                  'community: already in this world')
-            return
-        # cannot belong to another world already
-        if community.world_id is not None:
-            print(self.name, 'world: cannot add', community.name,
-                  'community: is in another world')
-            return
-        # so we're good to go
-        self.all_communities.append(community)
-        community.__world_id__ = self.__world_id__
-        print(self.name, 'world: added', community.name, 'community')
+    def prop_callback(self):
         if self.__communities_updated_callback__ is not None:
             self.__communities_updated_callback__()
 
+    def community_add(self, community: Community):
+        assert isinstance(community, Community), 'invalid community'
+        # cannot already be in this world
+        assert community.world_id != self.id, 'cannot add ' + \
+            community.name + ' community: already in this world'
+        # cannot belong to another world already
+        assert community.world_id is None, 'cannot add ' + \
+            community.name + ' community: is in another world'
+        # so we're good to go
+        self.all_communities.append(community)
+        community.__world_id__ = self.__world_id__
+        message(self.name, 'world: added', community.name, 'community')
+        self.prop_callback()
+
     def community_remove(self, community: Community):
-        assert community is not None and isinstance(community, Community)
+        assert isinstance(community, Community), 'invalid community'
         #
-        if community in self.all_communities:
-            self.all_communities.remove(community)
-            community.__world_id__ = None
-            print(self.name, 'world: removed', community.name, 'community(!)')
-            if self.__communities_updated_callback__ is not None:
-                self.__communities_updated_callback__()
-            return
-        print(self.name, 'world: cannot remove',
-              community.name, 'community: not in this world')
+        assert community in self.all_communities, 'cannot remove' + \
+            community.name + ' community: not in this world'
+        self.all_communities.remove(community)
+        community.__world_id__ = None
+        message(self.name, 'world: removed', community.name, 'community(!)')
+        self.prop_callback()
 
     def comm_id_of(self, family_id: int) -> int:
-        assert family_id is not None and isinstance(family_id, int)
+        assert isinstance(family_id, int), 'invalid family ID'
         #
         comms = [
             com for com in self.all_communities for fam in com.all_families if fam.id == family_id]
@@ -1210,8 +1286,8 @@ class World:
         return None
 
     def community_of(self, family_or_person_or_pet) -> Community:
-        assert family_or_person_or_pet is not None and isinstance(
-            family_or_person_or_pet, (Family, Animal))
+        assert isinstance(family_or_person_or_pet, (Family, Animal)
+                          ), ' invalid family, person or animal'
         # community must be in this world
         family_id = None
         if isinstance(family_or_person_or_pet, Animal) and not isinstance(family_or_person_or_pet, Person):
@@ -1227,23 +1303,18 @@ class World:
                     family_id = next(iter(family_ids))
         elif isinstance(family_or_person_or_pet, Family):
             family_id = family_or_person_or_pet.id
-        if family_id is None:
-            print(self.name, 'world: cannot find family ID for person',
-                  family_or_person_or_pet.name)
-            return None
+        assert family_id is not None, 'cannot find family ID for person ' + \
+            family_or_person_or_pet.name
         com = self.comm_id_of(family_id)
-        if com is None:
-            print(self.name, 'world: community for person',
-                  family_or_person_or_pet.name, 'is not in this world')
+        assert com is not None, 'community for person ' + \
+            family_or_person_or_pet.name + ' is not in this world'
         return com
 
     def family_of(self, person_or_pet) -> Family:
-        assert person_or_pet is not None and isinstance(
-            person_or_pet, Animal)
+        assert isinstance(person_or_pet, Animal), 'invalid person or animal'
         #
         comm = self.community_of(person_or_pet)
-        if comm is None:
-            return None
+        # assert comm is not None, 'person/pet is not in a community'
         # so we can hand-off this search to the community
         return comm.family_of(person_or_pet)
 
@@ -1253,6 +1324,52 @@ class World:
         for com in self.all_communities:
             pop += com.population
         return pop
+
+    def store_to_file(self, filename: str):
+        assert isinstance(filename, str), 'invalid file name'
+        filename = filename.strip()
+        assert filename != '', 'invalid file name'
+        #
+        # we need to store:
+        # - this "World" object
+        # - and the current values of:
+        #   - Community.__community_id__
+        #   - Family.__family_id__
+        #   - Person.__person_id__
+        # so that upon successful re-load we can continue generating new instances
+        # with unique IDs
+        #
+        with open(filename, 'wb') as file_to_store:
+            pickle.dump([self,
+                         Community.__community_id__,
+                         Family.__family_id__,
+                         Person.__person_id__,
+                         ], file_to_store)
+
+    @classmethod
+    def load_from_file(cls, filename: str) -> 'World':
+        assert isinstance(filename, str), 'invalid file name'
+        with open(filename, 'rb') as file_to_load:
+            data_list = pickle.load(file_to_load)
+        world = data_list[0]
+        # set the class ID counters
+        Community.__community_id__ = data_list[1]
+        Family.__family_id__ = data_list[2]
+        Person.__person_id__ = data_list[3]
+        return world
+
+    # to help in pickling
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if hasattr(self, '__communities_updated_callback__'):
+            del state['__communities_updated_callback__']
+        return state
+
+
+def message(*messages):
+    if __name__ != '__main__':
+        return
+    print(*messages)
 
 
 if __name__ == "__main__":
