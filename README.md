@@ -9,9 +9,10 @@ Sample project that evolved while self-learning Python3. Using an object-oriente
 2019-11-28 more dead-checks, slight re-layout, added speech
 
 To run:
+
 $ python3 world_gui.py
 
 and clickety-click around...
 
-Richard Shepherd
+Richard Shepherd,
 November 2019
