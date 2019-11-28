@@ -5,6 +5,7 @@ Sample project that evolved while self-learning Python3. Using an object-oriente
 
 2019-11-22 Added save-to/load-from file functionality
            some UI improvements
+
 2019-11-28 more dead-checks, slight re-layout, added speech
 
 To run:
