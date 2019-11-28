@@ -164,6 +164,7 @@ class Animal:
         self.__is_sweating__: bool = False
         self.__emotions__: Set[Emotion] = set()
         self.__has_healing_touch__: bool = is_healer
+        self.__words_spoken_count__: int = 0
 
         #
         if dob != None:
@@ -182,6 +183,7 @@ class Animal:
     def name(self) -> str: return self.__given_name__
     @name.setter
     def name(self, name: str):
+        assert self.is_alive, 'cannot rename the dead'
         assert isinstance(name, str), 'invalid name'
         name = name.strip()
         assert name != '', 'invalid name'
@@ -195,10 +197,20 @@ class Animal:
     def is_alive(self) -> bool: return self.__breathes__
 
     def dies(self):
+        assert self.is_alive, (self.name or self.animal_type) + \
+            ' is dead already'
         # resurrection not supported - death is final!
         self.__breathes__ = False
         self.add_action(Action.died)
         self.prop_callback()
+
+    @property
+    def words_spoken_count(self) -> int:
+        try:
+            return self.__words_spoken_count__
+        except AttributeError:
+            self.__words_spoken_count__ = 0
+            return self.__words_spoken_count__
 
     @property
     def is_wild(self) -> bool: return self.__is_wild__
@@ -426,7 +438,8 @@ class Animal:
         self.__action_history__.append((action, *strings))
 
     def crawls(self, distance: float):
-        assert self.is_alive, self.name or self.animal_type + "'s final crawl (to the grave) already completed"
+        assert self.is_alive, self.name or self.animal_type + \
+            "'s final crawl (to the grave) already completed"
         assert isinstance(distance, (int, float)), 'invalid distance'
         self.travelled(distance)
         self.add_action(Action.crawled, str(distance) +
@@ -474,7 +487,8 @@ class Animal:
     def is_wet(self) -> bool: return self.__is_wet__
 
     def drys(self):
-        assert self.is_wet, (self.name or self.animal_type) + ' is already dry'
+        assert self.is_wet, (self.name or self.animal_type) + \
+            ' is already dry (as a bone!)'
         self.__is_wet__ = False
         self.add_action(Action.dried)
         self.prop_callback()
@@ -487,7 +501,8 @@ class Animal:
         self.add_action(Action.got_tired)
 
     def rests(self):
-        assert self.is_alive, (self.name or self.animal_type) + " is already resting in peace"
+        assert self.is_alive, (self.name or self.animal_type) + \
+            " is already resting in peace"
         self.__is_tired__ = False
         self.add_action(Action.rested)
         if self.is_sweating:
@@ -495,9 +510,12 @@ class Animal:
         self.prop_callback()
 
     def says(self, words: str):
-        assert self.is_alive, (self.name or self.animal_type) + " can no longer speak"
+        assert self.is_alive, (self.name or self.animal_type) + \
+            " can no longer speak"
         assert isinstance(words, str), 'invalid words'
         self.add_action(Action.spoke, words)
+        word_count = len(words.split())
+        self.__words_spoken_count__ += word_count
         self.prop_callback()
 
     @property

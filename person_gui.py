@@ -24,12 +24,13 @@ class PersonGui:
     @property
     def person(self): return self.__person__
 
-    def rename_person(self):
+    def __rename_person__(self, row: int):
         new_name = self.__name_entry__.get()
         try:
             self.person.name = new_name
         except AssertionError as error:
-            tk.Label(master=self.__static_frame__, text=error.args)
+            tk.Label(master=self.__static_frame__, text=error.args).grid(
+                row=row, column=3, columnspan=4, sticky='W')
 
     def __person_detail__(self):
         # start by deleting any previous content
@@ -89,13 +90,17 @@ class PersonGui:
         tk.Button(master=self.__static_frame__,
                   text='Rename to',
                   highlightbackground='blue',
-                  command=lambda: self.rename_person()
+                  command=lambda: self.__rename_person__(row=row)
                   ).grid(row=row, column=0, sticky='NW')
         self.__name_entry__ = tk.Entry(master=self.__static_frame__,
                                        width=10)
         self.__name_entry__.grid(row=row, column=1)
 
     def __speaks_row__(self, row: int):
+        text = self.person.name + ' has spoken ' + \
+            str(self.person.words_spoken_count) + ' words'
+        tk.Label(master=self.__static_frame__, text=text).grid(
+            row=row, column=0, sticky='W')
         tk.Button(master=self.__static_frame__,
                   text='Says',
                   command=lambda: self.__speaks__(row=row),
@@ -105,6 +110,11 @@ class PersonGui:
 
     def __speaks__(self, row: int):
         text = self.__spoken_words_entry__.get()
+        text = text.strip()
+        if text == '':
+            tk.Label(master=self.__static_frame__, text='{no words spoken?}').grid(
+                row=row, column=3, columnspan=4, sticky='W')
+            return
         try:
             self.person.says(text)
         except AssertionError as error:
@@ -119,11 +129,14 @@ class PersonGui:
         tk.Button(master=self.__static_frame__,
                   text='Kill ' + self.person.name,
                   highlightbackground=bg,
-                  command=lambda: self.__kill_person__()).grid(row=row, column=1, sticky='W')
+                  command=lambda: self.__kill_person__(row=row)).grid(row=row, column=1, sticky='W')
 
-    def __kill_person__(self):
-        if self.person.is_alive:
+    def __kill_person__(self, row: int):
+        try:
             self.person.dies()
+        except AssertionError as error:
+            tk.Label(master=self.__static_frame__, text=error.args).grid(
+                row=row, column=3, columnspan=4, sticky='W')
 
     def __gender_state__(self, row: int):
         text = self.person.name + ' is ' + self.person.gender.value
