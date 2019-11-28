@@ -73,7 +73,8 @@ class PersonGui:
         self.__tiredness_state__(row=row)
         row += 1
         self.__dry_wet_state__(row=row)
-        # row += 1
+        row += 1
+        self.__speaks_row__(row=row)
         row += 1
         self.__action_history_state__(row=row)
         row += 1
@@ -93,6 +94,22 @@ class PersonGui:
         self.__name_entry__ = tk.Entry(master=self.__static_frame__,
                                        width=10)
         self.__name_entry__.grid(row=row, column=1)
+
+    def __speaks_row__(self, row: int):
+        tk.Button(master=self.__static_frame__,
+                  text='Says',
+                  command=lambda: self.__speaks__(row=row),
+                  highlightbackground='black').grid(row=row, column=1, sticky='W')
+        self.__spoken_words_entry__ = tk.Entry(master=self.__static_frame__)
+        self.__spoken_words_entry__.grid(row=row, column=2, sticky='W')
+
+    def __speaks__(self, row: int):
+        text = self.__spoken_words_entry__.get()
+        try:
+            self.person.says(text)
+        except AssertionError as error:
+            tk.Label(master=self.__static_frame__, text=error.args).grid(
+                row=row, column=3, columnspan=4, sticky='W')
 
     def __alive_state__(self, row: int):
         alive = 'alive' if self.person.is_alive else 'dead'
@@ -139,7 +156,8 @@ class PersonGui:
         except AssertionError as error:
             self.__gender_change_error__ = tk.Label(
                 master=self.__static_frame__, text=error.args)
-            self.__gender_change_error__.grid(row=row, column=3, sticky='W')
+            self.__gender_change_error__.grid(
+                row=row, column=3, columnspan=4, sticky='W')
             return
 
     def __hair_color_state__(self, row: int):
@@ -173,7 +191,7 @@ class PersonGui:
             self.__hair_color_change_error__ = tk.Label(
                 master=self.__static_frame__, text=error.args)
             self.__hair_color_change_error__.grid(
-                row=row, column=3, sticky='W')
+                row=row, column=3, columnspan=4, sticky='W')
             return
 
     def __dry_wet_state__(self, row: int):
@@ -185,8 +203,15 @@ class PersonGui:
         tk.Button(master=self.__static_frame__,
                   text='Drys',
                   highlightbackground='black',
-                  command=lambda: self.person.drys(),
-                  ).grid(row=row,column=1,sticky='W')
+                  command=lambda: self.__drys__(row=row),
+                  ).grid(row=row, column=1, sticky='W')
+
+    def __drys__(self, row: int):
+        try:
+            self.person.drys()
+        except AssertionError as error:
+            tk.Label(master=self.__static_frame__, text=error.args).grid(
+                row=row, column=3, columnspan=4, sticky='W')
 
     def __move_state__(self, row: int):
         distance = self.person.distance_travelled
@@ -220,9 +245,16 @@ class PersonGui:
         #
         tk.Button(master=self.__static_frame__,
                   text='Rests',
-                  command=lambda: self.person.rests(),
+                  command=lambda: self.__rests__(row=row),
                   highlightbackground='black',
                   ).grid(row=row, column=1, sticky='W')
+
+    def __rests__(self, row: int):
+        try:
+            self.person.rests()
+        except AssertionError as error:
+            tk.Label(master=self.__static_frame__, text=error.args).grid(
+                row=row, column=3, columnspan=4, sticky='W')
 
     def __travels__(self, row: int):
         distance_text = self.__distance_to_move__.get()

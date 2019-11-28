@@ -57,7 +57,7 @@ class CommunityGui:
             self.__family_frame__.destroy()
         #
         self.__family_frame__ = tk.Frame(master=self.frame)
-        self.__family_frame__.grid(row=0, column=3, sticky="N")
+        self.__family_frame__.grid(row=0, column=2, sticky="N")
         #
         if self.selected_family is not None:
             self.selected_family.set_notify_container(self.__community_detail__)

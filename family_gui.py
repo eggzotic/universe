@@ -178,7 +178,8 @@ class FamilyGui:
             self.__person_frame__.destroy()
         #
         self.__person_frame__ = tk.Frame(master=self.frame)
-        self.__person_frame__.grid(row=0, column=5, sticky='N')
+        # self.__person_frame__.grid(row=0, column=3, sticky='N')
+        self.__person_frame__.grid(row=1, column=0, sticky='N')
         #
         if self.selected_person is not None:
             self.selected_person.set_notify_container(self.__family_detail__)

@@ -314,9 +314,9 @@ class Animal:
     #  Family.pet_add() etc. methods - to ensure a valid family_id is passed
     def make_pet(self, family_id: int, name: str = None):
         assert not isinstance(self, Person), self.name or self.animal_type + \
-            ' cannot me made a pet - slavery not supported'
+            ' is a person - slavery not supported'
         assert not self.is_pet, self.animal_type + \
-            ' is already a pet called' + self.name + ' so cannot make a pet'
+            ' is already a pet called' + self.name
         assert ((isinstance(name, str) and name.strip() != '')
                 or
                 (isinstance(self.name, str) and self.name != '')), 'invalid pet name'
@@ -426,6 +426,7 @@ class Animal:
         self.__action_history__.append((action, *strings))
 
     def crawls(self, distance: float):
+        assert self.is_alive, self.name or self.animal_type + "'s final crawl (to the grave) already completed"
         assert isinstance(distance, (int, float)), 'invalid distance'
         self.travelled(distance)
         self.add_action(Action.crawled, str(distance) +
@@ -435,6 +436,7 @@ class Animal:
         self.prop_callback()
 
     def walks(self, distance: float):
+        assert self.is_alive, 'the walking dead - not supported'
         assert isinstance(distance, (int, float)), 'invalid distance'
         self.travelled(distance)
         self.add_action(Action.walked, str(distance) +
@@ -444,6 +446,7 @@ class Animal:
         self.prop_callback()
 
     def runs(self, distance: float):
+        assert self.is_alive, "the dead can't walk - let alone run"
         assert isinstance(distance, (int, float)), 'invalid distance'
         self.travelled(distance)
         self.add_action(Action.ran, str(distance) +
@@ -471,6 +474,7 @@ class Animal:
     def is_wet(self) -> bool: return self.__is_wet__
 
     def drys(self):
+        assert self.is_wet, (self.name or self.animal_type) + ' is already dry'
         self.__is_wet__ = False
         self.add_action(Action.dried)
         self.prop_callback()
@@ -483,6 +487,7 @@ class Animal:
         self.add_action(Action.got_tired)
 
     def rests(self):
+        assert self.is_alive, (self.name or self.animal_type) + " is already resting in peace"
         self.__is_tired__ = False
         self.add_action(Action.rested)
         if self.is_sweating:
@@ -490,8 +495,10 @@ class Animal:
         self.prop_callback()
 
     def says(self, words: str):
+        assert self.is_alive, (self.name or self.animal_type) + " can no longer speak"
         assert isinstance(words, str), 'invalid words'
         self.add_action(Action.spoke, words)
+        self.prop_callback()
 
     @property
     def is_cold(self) -> bool: return self.__is_cold__
